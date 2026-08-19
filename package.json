@@ -9,8 +9,7 @@
   "private": false,
   "scripts": {
     "dev": "node index.js",
-    "start": "node index.js",
-    "build": "echo 'No build needed'"
+    "start": "node index.js"
   },
   "dependencies": {
     "axios": "latest"
