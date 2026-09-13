@@ -1,4 +1,4 @@
-name: Redeploy Choreo
+name: Redeploy shiper
 
 on:
   workflow_dispatch:
