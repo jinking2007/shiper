@@ -19,8 +19,7 @@ RUN ["npm","install","-g","npm"]
 # 安装项目依赖
 RUN ["npm","ci"]
 
-# 🚀 核心修改 1：彻底删除下面这一行！你的项目没有 build 脚本
-# RUN ["npm","run","build"]
+# 🚀 关键：这里彻底删除了 RUN ["npm","run","build"]，千万不要保留！
 
 # ==========================================
 # 运行阶段 (Runner)
@@ -33,13 +32,13 @@ WORKDIR /app
 RUN ["addgroup","--system","--gid","1001","app"]
 RUN ["adduser","--system","--uid","1001","app"]
 
-# 🚀 核心修改 2：不要复制不存在的 dist 目录
+# 🚀 关键：不要复制不存在的 dist 目录
 # 直接复制应用源码和依赖
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/index.js ./index.js
 
-# 如果你还有其他的源码文件或文件夹（比如 src/、config/ 等），按需复制
+# 如果有其他的源码文件或文件夹（比如 src/、config/ 等），按需取消注释并复制
 # COPY --from=builder /app/src ./src
 
 # 确保非 root 用户有权限访问
