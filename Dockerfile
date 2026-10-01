@@ -1,39 +1,46 @@
-# 1. 使用 Node 20 Alpine 基础镜像（安全、体积小）
-FROM node:20-alpine3.20
-
-# 2. 设置工作目录（建议用 /app，不要用 /tmp）
-WORKDIR /app
-
-# 3. 安装必要的系统级依赖（根据你的实际需求保留或删除）
-# 如果无需编译原生模块（如 bcrypt, sqlite3），可以不装 python3/make/g++
-RUN apk update && apk add --no-cache bash openssl curl
-
-# 4. 复制根目录的依赖清单（利用 Docker 缓存层）
-COPY package.json package-lock.json ./
-
 # ==========================================
-# 5. 重点修复：复制所有 Workspace 子包的 package.json
-# ⚠️ 请根据你实际的 Monorepo 目录结构修改下面两行！
-# 假设你的子包在 packages/ 和 apps/ 目录下
+# 构建阶段 (Builder)
 # ==========================================
-COPY packages/*/package.json ./packages/
-COPY apps/*/package.json ./apps/
+FROM node:24.21.0-alpine AS builder
 
-# 6. 执行安装（使用 --workspaces --include-workspace-root 修复报错）
-# 提示：如果 npm ci 仍然报错，可以替换为 npm install --workspaces --include-workspace-root
-RUN npm ci --workspaces --include-workspace-root
+# 安装必要的系统依赖（日志中有使用 libc6-compat）
+RUN apk add --no-cache libc6-compat
 
-# 7. 复制项目所有源代码（前提是配置了 .dockerignore 排除 node_modules）
+WORKDIR /app/
+
+# 从你的构建上下文复制代码（如果此前有 COPY --from=src . . 也保留原来的，这里写通用写法）
 COPY . .
 
-# 8. 执行构建（如果你有 npm run build 脚本）
+# 重点修复：去掉全局更新 npm（没必要且容易出错）
+# 使用 npm ci，并带上处理 workspaces 的参数
+# 如果确实需要强制包含根目录的依赖，加上 --include-workspace-root
+RUN npm ci --workspaces --include-workspace-root
+
+# 执行构建
 RUN npm run build
 
-# 9. 暴露端口
+# ==========================================
+# 运行阶段 (Runner)
+# ==========================================
+FROM node:24.21.0-alpine AS runner
+
+WORKDIR /app
+
+# 创建非 root 用户 (根据你之前的日志保留)
+RUN addgroup --system --gid 1001 app
+RUN adduser --system --uid 1001 app
+
+# 从构建阶段复制产物
+# ⚠️ 下面的 dist 需要替换为你项目中真实的构建输出目录（如 dist, build, .next 等）
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+
+# 切换到非 root 用户
+USER app
+
 EXPOSE 3000
 
-# 10. 切换到非 root 用户运行（提高安全性）
-USER node
-
-# 11. 启动命令（根据你的入口文件调整）
-CMD ["node", "index.js"]
+# 启动命令
+# ⚠️ 确保路径与你的构建产物入口匹配，例如 dist/index.js 或 dist/main.js
+CMD ["node", "dist/index.js"]
